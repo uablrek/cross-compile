@@ -393,9 +393,9 @@ cmd_qemu() {
 	qemu_$__arch $@
 }
 qemu_x86_64() {
-	exec qemu-system-x86_64 -enable-kvm -M q35 -m 128M -smp 4 \
-		-drive file=fat:rw:$__root,format=raw,media=disk \
-		-monitor none -serial stdio -kernel $kernel $@
+	exec qemu-system-x86_64 -enable-kvm -M q35 -m 128M -smp 2 \
+		-nographic -append "init=/init" \
+		-monitor none -serial stdio -kernel $kernel  -initrd $__initrd $@
 }
 qemu_aarch64() {
 	exec qemu-system-aarch64 -nographic -cpu cortex-a72 \

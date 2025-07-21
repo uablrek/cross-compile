@@ -106,11 +106,11 @@ mkdir -p /tmp/root-aarch64
 aarch64-linux-gnu-gcc -static -o /tmp/root-aarch64/hello /tmp/hello.c
 ```
 
-Now build the kernel and `BosyBox` and test it:
+Now build the kernel and `BusyBox` and test it:
 ```
 export __arch=aarch64
 unset __kcfg      # (if you have set it above)
-./admin.sh setup --clean
+./admin.sh setup
 ./admin.sh qemu --root=/tmp/root-aarch64
 # In qemu
 uname -a
@@ -167,8 +167,9 @@ for more info.
 ## Musl libc
 
 [Musl libc](https://musl.libc.org/) is an alternative to GNU libc. It
-produces smaller binaries, and has a more relaxed license. It is used
-for instance by [Alpine Linux](https://www.alpinelinux.org/).
+produces smaller binaries, and has a more relaxed license (important
+for static linking). It is used for instance by
+[Alpine Linux](https://www.alpinelinux.org/).
 
 On Ubuntu `musl` is available for native builds:
 ```
