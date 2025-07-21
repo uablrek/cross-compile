@@ -8,6 +8,9 @@ https://www.raspberrypi.com/products/raspberry-pi-4-model-b/) and
 rarely use official distributions, so native build is not an option,
 besides it's *unbearably slow*.
 
+[Development and contributions](#development-and-contributions) are
+described below.
+
 I use Ubuntu Linux (on an x86_64 pc), so some ways may not work, or
 work differently, on other distros. But locally built tools like,
 [musl-cross-make](https://github.com/richfelker/musl-cross-make),
@@ -164,6 +167,7 @@ program. You don't have `ldd` in `qemu` but you can do what `ldd` does
 You can use a similar command on your pc. Please check `man ld-linux.so`
 for more info.
 
+
 ## Musl libc
 
 [Musl libc](https://musl.libc.org/) is an alternative to GNU libc. It
@@ -184,4 +188,43 @@ ll /tmp/hello-*
 But we want to cross compile, and the recommended way is to use
 [musl-cross-make](https://github.com/richfelker/musl-cross-make).
 
-To be continued...
+Clone and build:
+```
+export musldir=$HOME/tmp/musl-cross-make   # This is the default
+git clone --depth=1 https://github.com/richfelker/musl-cross-make.git $musldir
+./admin.sh musl-cross-make-build   # (takes ~9m on my 24-core i9!)
+```
+
+Now you can cross compile with `musl`, and test with `qemu`:
+
+```
+export PATH=$PATH:$musldir/aarch64/bin
+aarch64-linux-musl-gcc -o /tmp/root-aarch64/hello /tmp/hello.c
+file /tmp/root-aarch64/hello
+mkdir -p /tmp/root-aarch64/lib /tmp/root-aarch64/bin
+cp $musldir/aarch64/aarch64-linux-musl/lib/libc.so /tmp/root-aarch64/lib
+ln -s libc.so /tmp/root-aarch64/lib/ld-musl-aarch64.so.1
+ln -s /lib/libc.so /tmp/root-aarch64/bin/ldd
+./admin.sh qemu --root=/tmp/root-aarch64
+# In qemu
+./hello
+ldd ./hello
+```
+
+As you may notice the musl `/lib/libc.so` is a multi-purpose file. It
+works as loader and `ldd` also.
+
+
+
+## Development and contributions
+
+Issues and PR's are welcome. Please note that the license is CC0-1.0,
+meaning that everything you contribute will become public domain.
+
+By default everything is stored under `/tmp/tmp/$USER` because I mount
+a tmpfs (ramdisk) on `/tmp/tmp` for experiments. You may change that
+by setting the `$TEMP` environment variable.
+
+The kernel source will be unpacked in `$KERNELDIR` if necessary, which
+defaults to `$HOME/tmp/linux`. The kernel is not built in this
+directory, so you may write-protect it if you like.

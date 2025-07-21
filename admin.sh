@@ -335,7 +335,7 @@ cmd_gen_init_cpio() {
 #     Emit a gen_init_cpio list built from the passed <src> dir
 cmd_emit_list() {
 	test -n "$1" || die "No source"
-	local x p d=$1
+	local x p target d=$1
 	test -d $d || die "Not a directory [$d]"
 	cd $d
 	for x in $(find . -mindepth 1 -type d | cut -c2-); do
@@ -345,6 +345,10 @@ cmd_emit_list() {
 	for x in $(find . -mindepth 1 -type f | cut -c2-); do
 		p=$(stat --printf='%a' $d$x)
 		echo "file $x $d$x $p 0 0"
+	done
+	for x in $(find . -mindepth 1 -type l | cut -c2-); do
+		target=$(readlink $d$x)
+		echo "slink $x $target 777 0 0"
 	done
 }
 ##   expat_build
