@@ -12,7 +12,7 @@ besides it's *unbearably slow*.
 described below.
 
 I use Ubuntu Linux (on an x86_64 pc), so some ways may not work, or
-work differently, on other distros. But locally built tools like,
+work differently, on other distros. But locally built tools, like
 [musl-cross-make](https://github.com/richfelker/musl-cross-make),
 should work.
 
@@ -24,7 +24,7 @@ another LLVM backend!
 An advantage with cross compilation is that you can test your progams in
 virtual environment (qemu-system-aarch64).
 
-A *major* problem with cross compilation is library dependencies.
+A *major* problem with cross compilation is (library) dependencies.
 For native builds the libraries are installed, but not so when you
 cross compile. Basically you have 2 options: extract the needed libs
 from your target, or build them yourself. As I usually don't use a
@@ -43,7 +43,7 @@ Everything is built in `$XCOMPILE_WORKSPACE`, which defaults to
 environment variables. Example:
 
 ```
-export __arch=aarch64
+export __arch=x86_64
 ```
 
 Quick cross compile example:
@@ -61,7 +61,7 @@ make menuconfig
 # Set Settings>Cross compiler prefix to "aarch64-linux-gnu-" (tailing dash included)
 make -j$(nproc)
 file busybox   # Should be executable, ARM aarch64
-#./admin.sh busybox_build --arch=aarch64   # Does the same thing
+#./admin.sh busybox_build    # Does the same thing
 ```
 
 ## Linux kernel
@@ -86,7 +86,6 @@ make O=$__kobj ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
 
 Or
 ```
-export __arch=aarch64
 export __kcfg=/tmp/linux.config
 ./admin.sh kernel_build --initconfig=virt.config
 ```
@@ -111,7 +110,6 @@ aarch64-linux-gnu-gcc -static -o /tmp/root-aarch64/hello /tmp/hello.c
 
 Now build the kernel and `BusyBox` and test it:
 ```
-export __arch=aarch64
 unset __kcfg      # (if you have set it above)
 ./admin.sh setup
 ./admin.sh qemu --root=/tmp/root-aarch64
@@ -199,9 +197,9 @@ Now you can cross compile with `musl`, and test with `qemu`:
 
 ```
 export PATH=$PATH:$musldir/aarch64/bin
+mkdir -p /tmp/root-aarch64/lib /tmp/root-aarch64/bin
 aarch64-linux-musl-gcc -o /tmp/root-aarch64/hello /tmp/hello.c
 file /tmp/root-aarch64/hello
-mkdir -p /tmp/root-aarch64/lib /tmp/root-aarch64/bin
 cp $musldir/aarch64/aarch64-linux-musl/lib/libc.so /tmp/root-aarch64/lib
 ln -s libc.so /tmp/root-aarch64/lib/ld-musl-aarch64.so.1
 ln -s /lib/libc.so /tmp/root-aarch64/bin/ldd
@@ -214,6 +212,131 @@ ldd ./hello
 As you may notice the musl `/lib/libc.so` is a multi-purpose file. It
 works as loader and `ldd` also.
 
+
+## Open Source SW
+
+This is what you usually want to cross compile. They will have a
+build system, for instance:
+
+* Makefile (yay!)
+* Autotools (should have died in the 1990's)
+* meson (with or without "ninja")
+* cmake
+* kconfig (the Linux kernel system. Used by BusyBox and U-boot for instance)
+* Some more-or-less sane script
+* Totally insane build system ([EDK2](https://github.com/tianocore/edk2))
+* Native build *required* (systemd)
+
+All except the last 2 can usually be cross compiled without too much
+effort.
+
+### Makefile
+
+If a `Makefile` exist it may be enough to set some variables:
+
+```
+make CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar ..."
+```
+
+If not, you must check the `Makefile`, but since it's written by hand
+it's probably readable. SW with a `Makefile` are almost always easy to
+fix.
+
+### Autotools
+
+If these are well maintained, it *should* be enough to do:
+
+```
+./configure --host=aarch-linux-gnu ...
+make ...
+# Or;
+CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar ./configure ...
+make ...
+```
+
+Unfortunately, cross compile seems rarely tested by the maintainers.
+If it fails, you might be in trouble.
+
+### meson
+
+Cross compilation is defined in a file. Examples exist in the
+`config/` directory. If a `meson` project is well maintained, it
+*should* be enough to do:
+
+```
+meson setup --cross-file config/meson-cross.aarch64 ...
+meson compile ...
+```
+
+### cmake
+
+I haven't tested many of these, but setting environment variables seem
+to work:
+
+```
+CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar cmake ...
+make ...
+```
+
+### kconfig
+
+The [kernel build system](
+https://www.kernel.org/doc/html/next/kbuild/kconfig-language.html)
+should *really* be used by more complex open source projects, instead
+of a vast array of (more-or-less undocumented) options to autotools,
+meson or cmake.
+
+Anyway, I have not seen any project that uses `kconfig` that doesn't
+support cross compile.
+
+
+
+## Dependencies
+
+As mentioned, this can be a *major* problem. I use a "system directory"
+(sysd) where SW packages are installed. A later builds can refer to the 
+`sysd` rather than individual already-built packages.
+
+
+### pkg-config
+
+Many Open Source projects use [pkg-config](
+https://en.wikipedia.org/wiki/Pkg-config). Then we don't have to
+configure each dependency (`-I` and `-L` flags) manually.
+
+```
+./admin.sh expat_build
+./admin.sh pkgconfig pkg-config --libs --cflags expat
+-I/tmp/tmp/uablrek/xcompile/aarch64/sys/usr/local/include -L/tmp/tmp/uablrek/xcompile/aarch64/sys/usr/local/lib -lexpat
+```
+
+## Examples
+
+The `admin.sh` scripts include some examples. To use them you must
+download the libraries:
+
+```
+curl -L --output-dir $HOME/Downloads -O https://github.com/libexpat/libexpat/releases/download/R_2_7_1/expat-2.7.1.tar.xz
+curl -L --output-dir $HOME/Downloads -O https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.xz
+curl -L --output-dir $HOME/Downloads -O https://gitlab.freedesktop.org/xorg/lib/libpciaccess/-/archive/libpciaccess-0.18.1/libpciaccess-libpciaccess-0.18.1.tar.bz2
+curl -L --output-dir $HOME/Downloads -O https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.45/pcre2-10.45.tar.bz2
+./admin versions
+```
+
+Then build them in order. Please note that `libpciaccess` depends on `zlib`.
+
+```
+#export __musl=yes         # (if you want)
+#export __native=yes       # (no cross compilation)
+./admin.sh expat_build
+./admin.sh zlib_build
+./admin.sh libpciaccess_build
+./admin.sh pcre2_build
+```
+
+For a more ambitious project, please check my [sdl-without-x11](
+https://github.com/uablrek/sdl-without-x11). Perhaps I have
+taken on more that I can chew since the project is not finished.
 
 
 ## Development and contributions

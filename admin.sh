@@ -63,7 +63,7 @@ cdsrc() {
 			tar -C $WS -xf $f || die "Unpack [$f]"
 		fi
 	fi
-	cmd_pkgconfig
+	cmd_pkgconfig				# (define $PKG_CONFIG_LIBDIR)
 	cd $WS/$1
 }
 # Define sw versions
@@ -72,11 +72,11 @@ versions() {
 	eset \
 		ver_kernel=linux-6.15.7 \
 		ver_busybox=busybox-1.36.1 \
-		ver_expat=expat-2.6.2 \
 		ver_musl=musl-cross-make-master \
+		ver_expat=expat-2.7.1 \
 		ver_zlib=zlib-1.3.1 \
 		ver_libpciaccess=libpciaccess-libpciaccess-0.18.1 \
-		ver_pcre2=pcre2-10.44
+		ver_pcre2=pcre2-10.45
 }
 ##   env
 ##     Print environment.
@@ -89,7 +89,7 @@ cmd_env() {
 	eset ARCHIVE=$HOME/archive
 	eset FSEARCH_PATH=$HOME/Downloads:$ARCHIVE
 	eset XCOMPILE_WORKSPACE=/tmp/tmp/$USER/xcompile
-	eset __arch=x86_64
+	eset __arch=aarch64
 	eset __native=no
 	test "$__native" = "yes" && __arch=$(uname -m)
 	WS=$XCOMPILE_WORKSPACE/$__arch
@@ -103,8 +103,7 @@ cmd_env() {
 		__bbcfg=$dir/config/$ver_busybox \
 		__initrd=$WS/initrd.bz \
 		musldir=$HOME/tmp/musl-cross-make \
-		kernel=''
-	eset \
+		kernel='' \
 		__sysd=$WS/sys
 
 	if test "$cmd" = "env"; then
@@ -123,13 +122,13 @@ cmd_env() {
 		test -x $musldir/$__arch/bin/$__arch-linux-musl-gcc || \
 			die "No musl cross-compiler built for [$__arch]"
 		export PATH=$musldir/$__arch/bin:$PATH
-		cc_setup="CC=$__arch-linux-gnu-gcc AR=$__arch-linux-gnu-ar"
-		musl_at="--host=$__arch-linux-gnu"
-		musl_meson="--cross-file $dir/config/meson-cross-musl.$__arch"
+		cc_setup="CC=$__arch-linux-musl-gcc AR=$__arch-linux-musl-ar"
+		at_setup="--host=$__arch-linux-gnu"
+		meson_setup="--cross-file $dir/config/meson-cross-musl.$__arch"
 	else
 		cc_setup="CC=$__arch-linux-gnu-gcc AR=$__arch-linux-gnu-ar"
-		musl_at="--host=$__arch-linux-gnu"
-		musl_meson="--cross-file $dir/config/meson-cross.$__arch"
+		at_setup="--host=$__arch-linux-gnu"
+		meson_setup="--cross-file $dir/config/meson-cross.$__arch"
 	fi
 	mkdir -p $WS || die "Can't mkdir [$WS]"
 	if test "$__arch" = "aarch64"; then
@@ -144,8 +143,10 @@ cmd_env() {
 cmd_versions() {
 	unset opts
 	versions
-	set | grep -E "^($opts)="
-	test "$__brief" = "yes" && return 0
+	if test "$__brief" = "yes"; then
+		set | grep -E "^($opts)="
+		return 0
+	fi
 	local k v
 	for k in $(echo $opts | tr '|' ' '); do
 		v=$(eval echo \$$k)
@@ -156,17 +157,23 @@ cmd_versions() {
 		fi
 	done
 }
+##   clean
+##     Remove the work-space
+cmd_clean() {
+	rm -rf $ws
+}
 ##   setup [--clean]
-##     Build everything
+##     Build everything needed for qemu
 cmd_setup() {
 	test "$__clean" = "yes" && rm -rf $WS
 	$me busybox_build || die busybox_build
 	$me kernel_build || die kernel_build
 }
-##   pkgconfig <cmd>
-##     Fixup pkgconfig files, and set $PKG_CONFIG_LIBDIR
+##   pkgconfig [--sysd=] [cmd]
+##     Collect pkgconfig in --sysd to $__sysd/pkgconfig-sys.
+##     Fixup pkgconfig files, and set $PKG_CONFIG_LIBDIR.
 ##     Used internally for build setup. Cli use:
-##     ./xcompile.sh pkgconfig pkg-config --libs --cflags <lib>
+##     ./admin.sh pkgconfig pkg-config --libs --cflags <lib>
 cmd_pkgconfig() {
 	local d
 	mkdir -p $__sysd/pkgconfig-sys
@@ -351,39 +358,41 @@ cmd_emit_list() {
 		echo "slink $x $target 777 0 0"
 	done
 }
-##   expat_build
+##   Examples:
+##     expat_build
 cmd_expat_build() {
 	# Normal autotools cross-compile
 	cdsrc $ver_expat
-	test -r Makefile || ./configure $musl_at --without-docbook \
+	test -r Makefile || ./configure $at_setup --without-docbook \
 		--without-tests --without-examples || die "configure"
 	make -j$(nproc) || die make
 	make install DESTDIR=$__sysd || die "make install"
+	cmd_pkgconfig
 }
-##   zlib_build
+##     zlib_build
 cmd_zlib_build() {
 	# Simplified autotools cross-compile
 	cdsrc $ver_zlib
-	env $musl_cc ./configure
-	make -j$(nproc) $musl_cc || die make
+	env $cc_setup ./configure || die "configure zlib"
+	make -j$(nproc) || die make
 	make install prefix=$__sysd/usr/local
 }
-##   libpciaccess_build
+##     libpciaccess_build
 cmd_libpciaccess_build() {
 	# Meson cross-compile
 	cdsrc $ver_libpciaccess
-	test -d build || meson setup $musl_meson -Dzlib=enabled build
+	test -d build || meson setup $meson_setup -Dzlib=enabled build
 	meson compile -C build || die build
 	meson install -C build --destdir $__sysd
 }
-##   pcre2_build
+##     pcre2_build
 cmd_pcre2_build() {
 	# Cmake cross-compile. Use "cmake -LAH" to check options
 	cdsrc $ver_pcre2
 	local opt="-DBUILD_SHARED_LIBS=ON"
 	mkdir -p build
 	cd build
-	test -r "Makefile" || env $musl_cc cmake $opt .. || die cmake
+	test -r "Makefile" || env $cc_setup cmake $opt .. || die cmake
 	make -j$(nproc) || die make
 	make install -j$(nproc) DESTDIR=$__sysd || die "make install"
 }
