@@ -242,8 +242,11 @@ cmd_busybox_build() {
 		test -r $__bbcfg || die "No config"
 		cp $__bbcfg .config
 	fi
-	test "$__native" != "yes" && \
-		sed -i -E "s,CONFIG_CROSS_COMPILER_PREFIX=\"\",CONFIG_CROSS_COMPILER_PREFIX=\"$__arch-linux-gnu-\"," .config
+	if test "$__native" != "yes"; then
+		local prefix=$__arch-linux-gnu-
+		test "$__musl" = "yes" && prefix=$__arch-linux-musl-
+		sed -i -E "s,CONFIG_CROSS_COMPILER_PREFIX=\"\",CONFIG_CROSS_COMPILER_PREFIX=\"$prefix\"," .config
+	fi
 	make -j$(nproc)
 }
 cmd_kernel_unpack() {
