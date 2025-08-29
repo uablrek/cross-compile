@@ -93,11 +93,12 @@ cmd_env() {
 	eset __native=no
 	test "$__native" = "yes" && __arch=$(uname -m)
 	WS=$XCOMPILE_WORKSPACE/$__arch
+	test "$__musl" = "yes" && WS=$WS-musl
 	eset KERNELDIR=$HOME/tmp/linux
 	eset \
 		WS='' \
 		__musl=no \
-		__kcfg=$dir/config/$ver_kernel-$__arch \
+		__kcfg=$dir/config/$__arch/$ver_kernel \
 		__kdir=$KERNELDIR/$ver_kernel \
 		__kobj=$WS/obj/$ver_kernel \
 		__bbcfg=$dir/config/$ver_busybox \
@@ -124,11 +125,11 @@ cmd_env() {
 		export PATH=$musldir/$__arch/bin:$PATH
 		cc_setup="CC=$__arch-linux-musl-gcc AR=$__arch-linux-musl-ar"
 		at_setup="--host=$__arch-linux-gnu"
-		meson_setup="--cross-file $dir/config/meson-cross-musl.$__arch"
+		meson_setup="--cross-file $dir/config/$__arch/meson-cross-musl"
 	else
 		cc_setup="CC=$__arch-linux-gnu-gcc AR=$__arch-linux-gnu-ar"
 		at_setup="--host=$__arch-linux-gnu"
-		meson_setup="--cross-file $dir/config/meson-cross.$__arch"
+		meson_setup="--cross-file $dir/config/$__arch/meson-cross"
 	fi
 	mkdir -p $WS || die "Can't mkdir [$WS]"
 	if test "$__arch" = "aarch64"; then
@@ -168,6 +169,30 @@ cmd_setup() {
 	test "$__clean" = "yes" && rm -rf $WS
 	$me busybox_build || die busybox_build
 	$me kernel_build || die kernel_build
+}
+##   rebuild [--arch=] [--musl]
+##     Rebuild the test applications
+cmd_rebuild() {
+	local begin=$(date +%s) now
+	rm -rf $WS
+	local c
+	for c in expat_build zlib_build libpciaccess_build pcre2_build; do
+		$me $c || die $c
+	done
+	now=$(date +%s)
+	echo "Build for $(basename $WS) in $((now-begin)) sec"
+}
+##   rebuild-all
+##     Rebuild for all targets (for test)
+cmd_rebuild_all() {
+	local begin=$(date +%s) now
+	rm -rf $XCOMPILE_WORKSPACE
+	$me rebuild --arch=x86_64 --musl=no || die "x86_64"
+	$me rebuild --arch=x86_64 --musl=yes || die "x86_64-musl"
+	$me rebuild --arch=aarch64 --musl=no || die "aarch64"
+	$me rebuild --arch=aarch64 --musl=yes || die "aarch64-musl"
+	now=$(date +%s)
+	echo "Build for all targets in $((now-begin)) sec"
 }
 ##   pkgconfig [--sysd=] [cmd]
 ##     Collect pkgconfig in --sysd to $__sysd/pkgconfig-sys.
