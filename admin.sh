@@ -126,11 +126,14 @@ cmd_env() {
 		cc_setup="CC=$__arch-linux-musl-gcc AR=$__arch-linux-musl-ar"
 		at_setup="--host=$__arch-linux-gnu"
 		meson_setup="--cross-file $dir/config/$__arch/meson-cross-musl"
+		CMAKE_TOOLCHAIN_FILE=$dir/config/$__arch/cmake_toolchain-musl
 	else
 		cc_setup="CC=$__arch-linux-gnu-gcc AR=$__arch-linux-gnu-ar"
 		at_setup="--host=$__arch-linux-gnu"
 		meson_setup="--cross-file $dir/config/$__arch/meson-cross"
+		CMAKE_TOOLCHAIN_FILE=$dir/config/$__arch/cmake_toolchain
 	fi
+	export CMAKE_TOOLCHAIN_FILE WS
 	mkdir -p $WS || die "Can't mkdir [$WS]"
 	if test "$__arch" = "aarch64"; then
 		kernel=$__kobj/arch/arm64/boot/Image
@@ -163,12 +166,22 @@ cmd_versions() {
 cmd_clean() {
 	rm -rf $ws
 }
-##   setup [--clean]
+##   setup [--clean] [--arch=] [--musl]
 ##     Build everything needed for qemu
 cmd_setup() {
 	test "$__clean" = "yes" && rm -rf $WS
 	$me busybox_build || die busybox_build
 	$me kernel_build || die kernel_build
+}
+cmd_setup_all() {
+	local begin=$(date +%s) now
+	rm -rf $XCOMPILE_WORKSPACE
+	$me setup --arch=x86_64 --musl=no || die "x86_64"
+	$me setup --arch=x86_64 --musl=yes || die "x86_64-musl"
+	$me setup --arch=aarch64 --musl=no || die "aarch64"
+	$me setup --arch=aarch64 --musl=yes || die "aarch64-musl"
+	now=$(date +%s)
+	echo "Qemu setup for all targets in $((now-begin)) sec"
 }
 ##   rebuild [--arch=] [--musl]
 ##     Rebuild the test applications
@@ -421,7 +434,7 @@ cmd_pcre2_build() {
 	local opt="-DBUILD_SHARED_LIBS=ON"
 	mkdir -p build
 	cd build
-	test -r "Makefile" || env $cc_setup cmake $opt .. || die cmake
+	test -r "Makefile" || cmake $opt .. || die cmake
 	make -j$(nproc) || die make
 	make install -j$(nproc) DESTDIR=$__sysd || die "make install"
 }

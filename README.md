@@ -87,6 +87,7 @@ make O=$__kobj ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
 Or
 ```
 export __kcfg=/tmp/linux.config
+export __arch=aarch64
 ./admin.sh kernel_build --initconfig=virt.config
 ```
 
@@ -270,13 +271,11 @@ meson compile ...
 
 ### cmake
 
-I haven't tested many of these, but setting environment variables seem
-to work:
+Cross compilation with `cmake` is described [here](
+https://cmake.org/cmake/help/book/mastering-cmake/chapter/Cross%20Compiling%20With%20CMake.html).
+"cmake_toolchain" files are included in `config/`, but are not well
+tested.
 
-```
-CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar cmake ...
-make ...
-```
 
 ### kconfig
 
