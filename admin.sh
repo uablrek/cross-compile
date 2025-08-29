@@ -227,7 +227,8 @@ cmd_musl_install() {
 	local libd=$musldir/$__arch/$__arch-linux-musl/lib
 	test -d $libd || die "Not a directory [$libd]"
 	mkdir -p "$1/lib" || die "Mkdir failed [$1/lib]"
-	cp $libd/libc.so $1/lib/ld-musl-$__arch.so.1  # The loader
+	cp $libd/libc.so $1/lib
+	ln -sf libc.so $1/lib/ld-musl-$__arch.so.1  # The loader
 	cp -L $libd/lib*.so.[0-9] $1/lib
 }
 ##   busybox_build [--bbcfg=] [--menuconfig]
