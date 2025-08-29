@@ -49,7 +49,7 @@ export __arch=x86_64
 Quick cross compile example:
 ```
 # Cross compile a static BusyBox for aarch64
-sudo apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+#sudo apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 ver_busybox=busybox-1.36.1
 curl --output-dir $HOME/Downloads -O -L https://busybox.net/downloads/$ver_busybox.tar.bz2
 ws=/tmp/tmp/$USER/xcompile-test
@@ -61,7 +61,7 @@ make menuconfig
 # Set Settings>Cross compiler prefix to "aarch64-linux-gnu-" (tailing dash included)
 make -j$(nproc)
 file busybox   # Should be executable, ARM aarch64
-#./admin.sh busybox_build    # Does the same thing
+#./admin.sh busybox-build    # Does the same thing
 ```
 
 ## Linux kernel
@@ -72,7 +72,7 @@ allows the same source tree to be used for different builds.
 
 ```
 #sudo apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-ver_kernel=linux-6.15.7
+ver_kernel=linux-6.16.1
 curl --output-dir $HOME/Downloads -O https://cdn.kernel.org/pub/linux/kernel/v6.x/$ver_kernel.tar.xz
 KERNELDIR=$HOME/tmp/linux
 mkdir -p $KERNELDIR
@@ -88,7 +88,7 @@ Or
 ```
 export __kcfg=/tmp/linux.config
 export __arch=aarch64
-./admin.sh kernel_build --initconfig=virt.config
+./qemu.sh kernel-build --initconfig=virt.config
 ```
 
 ## Test with qemu
@@ -111,9 +111,10 @@ aarch64-linux-gnu-gcc -static -o /tmp/root-aarch64/hello /tmp/hello.c
 
 Now build the kernel and `BusyBox` and test it:
 ```
-unset __kcfg      # (if you have set it above)
-./admin.sh setup
-./admin.sh qemu --root=/tmp/root-aarch64
+unset __kcfg        # (if you have set it above)
+./qemu.sh rebuild   # build kernel and busybox (only needed once)
+TEST_DIR=/tmp/root-aarch64 ./qemu.sh initrd-build ovl/test
+./qemu.sh run
 # In qemu
 uname -a
 ./hello
@@ -128,6 +129,8 @@ programs we need a `loader` and the libraries. Build with:
 ```
 aarch64-linux-gnu-gcc -o /tmp/root-aarch64/hello /tmp/hello.c
 file /tmp/root-aarch64/hello
+TEST_DIR=/tmp/root-aarch64 ./qemu.sh initrd-build ovl/test
+./qemu.sh run
 ```
 
 If you try to run again i `qemu`, you will get a `./hello: not found`.
@@ -138,6 +141,8 @@ So, let's add it and try again:
 ```
 mkdir -p /tmp/root-aarch64/lib
 cp /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1 /tmp/root-aarch64/lib
+TEST_DIR=/tmp/root-aarch64 ./qemu.sh initrd-build ovl/test
+./qemu.sh run
 ```
 This time you get:
 ```
@@ -146,6 +151,8 @@ This time you get:
 which is an improvement. Add the lib and try again:
 ```
 cp /usr/aarch64-linux-gnu/lib/libc.so.6 /tmp/root-aarch64/lib
+TEST_DIR=/tmp/root-aarch64 ./qemu.sh initrd-build ovl/test
+./qemu.sh run
 ```
 Success!
 
@@ -274,8 +281,11 @@ meson compile ...
 Cross compilation with `cmake` is described [here](
 https://cmake.org/cmake/help/book/mastering-cmake/chapter/Cross%20Compiling%20With%20CMake.html).
 "cmake_toolchain" files are included in `config/`, but are not well
-tested.
+tested. Example:
 
+```
+export CMAKE_TOOLCHAIN_FILE=$PWD/config/aarch64/cmake_toolchain-musl
+```
 
 ### kconfig
 
@@ -331,6 +341,13 @@ Then build them in order. Please note that `libpciaccess` depends on `zlib`.
 ./admin.sh zlib_build
 ./admin.sh libpciaccess_build
 ./admin.sh pcre2_build
+# Or build with the script and test in qemu
+./admin.sh rebuild --qemu
+./qemu.sh run
+# In qemu:
+. /etc/profile
+ldd /bin/pcre2grep
+pcre2grep
 ```
 
 For a more ambitious project, please check my [sdl-without-x11](

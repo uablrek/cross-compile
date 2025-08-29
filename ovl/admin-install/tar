@@ -1,0 +1,31 @@
+#! /bin/sh
+# NOTE: A common pattern is to specify "-" (stdout) as out-file,
+#  so there must be NO log printouts to stdout!
+
+dir=$(dirname $0); dir=$(readlink -f $dir)
+cd $dir
+tmp=/tmp/tmp/$USER/ovl_$$
+
+die() {
+	echo "ERROR: $*" >&2
+	rm -rf $tmp
+	exit 1
+}
+log() {
+	echo "INFO: $*" >&2
+}
+test -n "$1" || die "No out-file"
+admin=$(readlink -f $dir/../../admin.sh)
+test -x $admin || die "Not executable [$admin]"
+
+$admin install --dest=$tmp || die "$admin install"
+if ! test -d $tmp; then
+	# This may be a no-op
+	tar -cf "$1" -T /dev/null	# (an empty tar-file)
+	exit 0
+fi
+
+cd $tmp
+tar cf "$1" *
+cd $dir
+rm -rf $tmp
