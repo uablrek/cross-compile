@@ -129,14 +129,22 @@ cmd_env() {
 		cc_setup="CC=$__arch-linux-musl-gcc AR=$__arch-linux-musl-ar"
 		at_setup="--host=$__arch-linux-gnu"
 		meson_setup="--cross-file $dir/config/$__arch/meson-cross-musl"
-		export CMAKE_TOOLCHAIN_FILE=$dir/config/$__arch/cmake_toolchain-musl
-		export WS
+		export CMAKE_TOOLCHAIN_FILE=$WS/cmake/toolchain-musl
+		if ! test -r $CMAKE_TOOLCHAIN_FILE; then
+			mkdir -p $WS/cmake
+			__sysd=$__sysd envsubst < $dir/config/$__arch/cmake_toolchain-musl\
+				> $CMAKE_TOOLCHAIN_FILE
+		fi
 	else
 		cc_setup="CC=$__arch-linux-gnu-gcc AR=$__arch-linux-gnu-ar"
 		at_setup="--host=$__arch-linux-gnu"
 		meson_setup="--cross-file $dir/config/$__arch/meson-cross"
-		export CMAKE_TOOLCHAIN_FILE=$dir/config/$__arch/cmake_toolchain
-		export WS
+		export CMAKE_TOOLCHAIN_FILE=$WS/cmake/toolchain
+		if ! test -r $CMAKE_TOOLCHAIN_FILE; then
+			mkdir -p $WS/cmake
+			__sysd=$__sysd envsubst < $dir/config/$__arch/cmake_toolchain \
+				> $CMAKE_TOOLCHAIN_FILE
+		fi
 	fi
 	mkdir -p $WS || die "Can't mkdir [$WS]"
 	if test "$__arch" = "aarch64"; then
@@ -150,11 +158,11 @@ cmd_env() {
 ##     Print used sw versions
 cmd_versions() {
 	if test "$__brief" = "yes"; then
-		set | grep -E 'ver_[a-z]+='
+		set | grep -E 'ver_[a-z0-9]+='
 		return 0
 	fi
 	local k v
-	for k in $(set | grep -E 'ver_[a-z]+=' | cut -d= -f1); do
+	for k in $(set | grep -E 'ver_[a-z0-9]+=' | cut -d= -f1); do
 		v=$(eval echo \$$k)
 		if findar $v; then
 			printf "%-20s (%s)\n" $v $f
